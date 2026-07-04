@@ -591,7 +591,112 @@ class StockAnalysisPipeline:
                     except Exception as e:
                         logger.warning(f"{stock_name}({code}) 保存新闻情报失败: {e}")
             else:
-                logger.info(f"{stock_name}({code}) 搜索服务不可用，跳过情报搜索")
+                logger.info(f"{stock_name}({code}) 搜索服务不可用，使用 a-stock-data 内置数据源获取资讯")
+                try:
+                    from data_provider.a_stock_data import (
+                        eastmoney_stock_news,
+                        eastmoney_global_news,
+                        eastmoney_reports,
+                    )
+                    intel_parts = []
+                    intel_items_for_db = []
+
+                    # 1. 个股新闻
+                    try:
+                        stock_news = eastmoney_stock_news(code, page_size=10)
+                        if stock_news:
+                            intel_parts.append("## 个股最新新闻")
+                            for n in stock_news[:8]:
+                                title = n.get("title", "").strip()
+                                snippet = n.get("content", "")[:120]
+                                t = n.get("time", "")
+                                if title:
+                                    intel_parts.append(f"- [{t}] {title}: {snippet}")
+                                    intel_items_for_db.append({
+                                        "title": title, "snippet": snippet,
+                                        "url": n.get("url", ""),
+                                        "source": n.get("source", "东方财富"),
+                                        "published_date": t,
+                                        "dimension": "stock_news",
+                                    })
+                    except Exception as e:
+                        logger.debug(f"{stock_name}({code}) 个股新闻获取失败: {e}")
+
+                    # 2. 研报
+                    try:
+                        reports = eastmoney_reports(code, max_pages=1)
+                        if reports:
+                            intel_parts.append("\n## 最新研究报告")
+                            for r in reports[:5]:
+                                title = r.get("title", "").strip()
+                                org = r.get("org", "")
+                                pub = r.get("publishDate", "")[:10]
+                                rating = r.get("rating", "")
+                                if title:
+                                    intel_parts.append(f"- [{pub}] {org} {rating}: {title}")
+                                    intel_items_for_db.append({
+                                        "title": title,
+                                        "snippet": f"{org} {rating}",
+                                        "url": r.get("url", ""),
+                                        "source": org or "东方财富研报",
+                                        "published_date": pub,
+                                        "dimension": "research_report",
+                                    })
+                    except Exception as e:
+                        logger.debug(f"{stock_name}({code}) 研报获取失败: {e}")
+
+                    # 3. 全球资讯（市场大环境）
+                    try:
+                        global_news = eastmoney_global_news(page_size=5)
+                        if global_news:
+                            intel_parts.append("\n## 市场快讯")
+                            for g in global_news[:3]:
+                                title = g.get("title", "").strip()
+                                summary = g.get("summary", "")[:100]
+                                t = g.get("time", "")
+                                if title:
+                                    intel_parts.append(f"- [{t}] {title}: {summary}")
+                                    intel_items_for_db.append({
+                                        "title": title, "snippet": summary,
+                                        "url": "",
+                                        "source": "东方财富全球资讯",
+                                        "published_date": t,
+                                        "dimension": "global_news",
+                                    })
+                    except Exception as e:
+                        logger.debug(f"{stock_name}({code}) 全球资讯获取失败: {e}")
+
+                    if intel_parts:
+                        news_context = "\n".join(intel_parts)
+                        news_result_count = len(intel_items_for_db)
+                        logger.info(f"{stock_name}({code}) a-stock-data 资讯获取完成: {news_result_count} 条")
+
+                        # 保存到数据库（Web UI 资讯动态）
+                        try:
+                            from src.search_service import SearchResponse, SearchResult
+                            query_context = self._build_query_context(query_id=query_id)
+                            sr_items = [
+                                SearchResult(
+                                    title=i["title"], snippet=i["snippet"],
+                                    url=i["url"], source=i["source"],
+                                    published_date=i["published_date"],
+                                ) for i in intel_items_for_db
+                            ]
+                            sr = SearchResponse(
+                                query=f"{stock_name} a-stock-data",
+                                results=sr_items, provider="a-stock-data",
+                            )
+                            self.db.save_news_intel(
+                                code=code, name=stock_name,
+                                dimension="a-stock-data", query=sr.query,
+                                response=sr, query_context=query_context,
+                            )
+                        except Exception as e:
+                            logger.warning(f"{stock_name}({code}) 保存 a-stock-data 资讯失败: {e}")
+                    else:
+                        logger.info(f"{stock_name}({code}) a-stock-data 未获取到资讯")
+                except Exception as e:
+                    logger.warning(f"{stock_name}({code}) a-stock-data 资讯获取异常: {e}")
 
             # Step 4.5: Social sentiment intelligence (US stocks only)
             if self.social_sentiment_service is not None and self.social_sentiment_service.is_available and is_us_stock_code(code):
