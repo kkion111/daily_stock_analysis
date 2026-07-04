@@ -2550,6 +2550,57 @@ class DataFetcherManager:
                 )
                 continue
         logger.warning("[MarketStats] component=market_stats action=complete status=empty purpose=%s", purpose)
+        # Tencent API fallback (no rate limit, always available)
+        try:
+            from data_provider.a_stock_data import tencent_quote
+            # Fetch a representative batch of stocks to estimate market breadth
+            # Use major indices constituents approximation via tencent
+            sample_codes = [
+                "000001", "000002", "000063", "000100", "000157",
+                "000333", "000538", "000568", "000651", "000725",
+                "000776", "000858", "000895", "000938", "000977",
+                "002001", "002027", "002049", "002120", "002142",
+                "002230", "002271", "002304", "002352", "002415",
+                "002460", "002475", "002555", "002594", "002714",
+                "300001", "300003", "300015", "300033", "300059",
+                "300122", "300124", "300142", "300347", "300408",
+                "300413", "300433", "300496", "300529", "300601",
+                "300628", "300750", "300760", "600000", "600009",
+                "600016", "600028", "600030", "600036", "600048",
+                "600050", "600104", "600111", "600115", "600132",
+                "600196", "600276", "600309", "600340", "600406",
+                "600436", "600438", "600519", "600585", "600588",
+                "600690", "600745", "600809", "600837", "600887",
+                "600900", "601006", "601012", "601088", "601111",
+                "601138", "601166", "601169", "601186", "601211",
+                "601225", "601229", "601288", "601318", "601328",
+                "601390", "601398", "601601", "601628", "601668",
+                "601669", "601688", "601766", "601818", "601857",
+                "601888", "601899", "601919", "601985", "601988",
+                "601989", "601998", "603259", "603288", "603501",
+                "603799", "603833", "603986", "688009", "688012",
+                "688036", "688111", "688187", "688256", "688303",
+                "688396", "688561", "688599", "688981",
+            ]
+            q = tencent_quote(sample_codes)
+            if q:
+                up = sum(1 for v in q.values() if v.get("change_pct", 0) > 0)
+                down = sum(1 for v in q.values() if v.get("change_pct", 0) < 0)
+                flat = len(q) - up - down
+                limit_up = sum(1 for v in q.values() if v.get("change_pct", 0) >= 9.9)
+                limit_down = sum(1 for v in q.values() if v.get("change_pct", 0) <= -9.9)
+                logger.info(
+                    "[MarketStats] component=market_stats action=tencent_fallback "
+                    "purpose=%s count=%d up=%d down=%d",
+                    purpose, len(q), up, down,
+                )
+                return {
+                    "up_count": up, "down_count": down, "flat_count": flat,
+                    "limit_up_count": limit_up, "limit_down_count": limit_down,
+                    "total_amount": 0, "source": "tencent_fallback",
+                }
+        except Exception as e:
+            logger.debug("[MarketStats] tencent fallback failed: %s", e)
         return {}
 
     def _run_with_timeout(

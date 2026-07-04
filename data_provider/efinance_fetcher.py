@@ -963,8 +963,10 @@ class EfinanceFetcher(BaseFetcher):
                 return None
 
             return self._calc_market_stats(df)
-        except Exception as e:
-            logger.error(
+        except (ValueError, Exception) as e:
+            # ValueError covers JSONDecodeError (empty API response / rate limit)
+            log_fn = logger.debug if isinstance(e, ValueError) else logger.warning
+            log_fn(
                 "[MarketStats] component=market_stats provider=EfinanceFetcher "
                 "api=ef.stock.get_realtime_quotes action=failed error=%s",
                 e,
