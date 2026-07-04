@@ -242,6 +242,13 @@ jobs:
           LLM_OPENROUTER_ENABLED: ${{ vars.LLM_OPENROUTER_ENABLED || secrets.LLM_OPENROUTER_ENABLED }}
           LLM_OPENROUTER_EXTRA_HEADERS: ${{ vars.LLM_OPENROUTER_EXTRA_HEADERS || secrets.LLM_OPENROUTER_EXTRA_HEADERS }}
 
+          # 小米 MIMO
+          LLM_MIMO_PROTOCOL: ${{ vars.LLM_MIMO_PROTOCOL || secrets.LLM_MIMO_PROTOCOL || 'openai' }}
+          LLM_MIMO_BASE_URL: ${{ vars.LLM_MIMO_BASE_URL || secrets.LLM_MIMO_BASE_URL || 'https://api.xiaomimimo.com/v1' }}
+          LLM_MIMO_API_KEY: ${{ secrets.LLM_MIMO_API_KEY }}
+          LLM_MIMO_MODELS: ${{ vars.LLM_MIMO_MODELS || secrets.LLM_MIMO_MODELS || 'mimo-v2.5-pro' }}
+          LLM_MIMO_ENABLED: ${{ vars.LLM_MIMO_ENABLED || secrets.LLM_MIMO_ENABLED || 'true' }}
+
           LLM_OLLAMA_PROTOCOL: ${{ vars.LLM_OLLAMA_PROTOCOL || secrets.LLM_OLLAMA_PROTOCOL }}
           LLM_OLLAMA_BASE_URL: ${{ vars.LLM_OLLAMA_BASE_URL || secrets.LLM_OLLAMA_BASE_URL }}
           LLM_OLLAMA_API_KEY: ${{ secrets.LLM_OLLAMA_API_KEY }}
